@@ -115,7 +115,8 @@ async function generateBannerImage(imagePrompt, articleTitle) {
 
 async function ingestArticle(articlePayload) {
   console.log("🚀 Submitting draft article to Bullish Hammer Ingestion API...");
-  const res = await fetch('http://localhost:3000/api/ingest', {
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  const res = await fetch(`${baseUrl}/api/ingest`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

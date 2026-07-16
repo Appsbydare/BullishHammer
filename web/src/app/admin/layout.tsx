@@ -1,5 +1,5 @@
 import "./admin.css";
-import { auth } from "@/auth";
+import { cookies } from "next/headers";
 import AdminNav from "./AdminNav";
 
 export default async function AdminLayout({
@@ -7,8 +7,9 @@ export default async function AdminLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await auth();
-  const isAuthenticated = !!session;
+  const cookieStore = await cookies();
+  const session = cookieStore.get("admin_session");
+  const isAuthenticated = session?.value === "true";
 
   if (!isAuthenticated) {
     return (

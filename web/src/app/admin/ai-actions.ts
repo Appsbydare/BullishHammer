@@ -2,11 +2,11 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
+import { cookies } from "next/headers";
 
 export async function fetchNewsAction(category: string) {
-  const session = await auth();
-  if (!session) return { error: "Unauthorized" };
+  const cookieStore = await cookies();
+  if (cookieStore.get("admin_session")?.value !== "true") return { error: "Unauthorized" };
   try {
     const MARKETAUX_API_TOKEN = process.env.MARKETAUX_API_TOKEN?.trim();
     if (!MARKETAUX_API_TOKEN) {
@@ -32,8 +32,8 @@ export async function fetchNewsAction(category: string) {
 }
 
 export async function generateArticleAction(newsData: any[], customInstructions: string) {
-  const session = await auth();
-  if (!session) return { error: "Unauthorized" };
+  const cookieStore = await cookies();
+  if (cookieStore.get("admin_session")?.value !== "true") return { error: "Unauthorized" };
 
   try {
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;

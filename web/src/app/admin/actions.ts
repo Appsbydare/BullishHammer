@@ -1,32 +1,34 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { signIn, auth } from "@/auth";
-import { AuthError } from "next-auth";
 
 export async function loginAction(prevState: any, formData: FormData) {
-  try {
-    // Fake delay for smooth UX transition
-    await new Promise(r => setTimeout(r, 500));
-    
-    // Auth.js will automatically handle the redirect on success
-    await signIn("credentials", formData);
-  } catch (error) {
-    if (error instanceof AuthError) {
-      switch (error.type) {
-        case "CredentialsSignin":
-          return { error: "Invalid password. Please try again." };
-        default:
-          return { error: "Authentication failed." };
-      }
-    }
-    throw error; // Rethrow necessary Next.js errors like NEXT_REDIRECT
+  const password = formData.get("password");
+  
+  // Fake delay for smooth UX transition
+  await new Promise(r => setTimeout(r, 500));
+  
+  if (password === process.env.ADMIN_PASSWORD) {
+    const cookieStore = await cookies();
+    cookieStore.set("admin_session", "true", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 7, // 1 week
+      path: "/",
+    });
+    // For server actions that redirect after setting cookies, you don't actually need to return a redirect if the parent layout detects the cookie change.
+    // However, revalidating the layout is necessary so it re-renders.
+    revalidatePath("/admin");
+    return { success: true };
+  } else {
+    return { error: "Invalid password. Please try again." };
   }
 }
 
 export async function approveDraft(formData: FormData) {
-  const session = await auth();
-  if (!session) return;
+  const cookieStore = await cookies();
+  if (cookieStore.get("admin_session")?.value !== "true") return;
   const id = formData.get("id") as string;
   
   const { writeClient } = await import("@/sanity/write-client");
@@ -36,8 +38,8 @@ export async function approveDraft(formData: FormData) {
 }
 
 export async function deleteDraft(formData: FormData) {
-  const session = await auth();
-  if (!session) return;
+  const cookieStore = await cookies();
+  if (cookieStore.get("admin_session")?.value !== "true") return;
   const id = formData.get("id") as string;
   
   const { writeClient } = await import("@/sanity/write-client");
@@ -46,8 +48,8 @@ export async function deleteDraft(formData: FormData) {
 }
 
 export async function updatePlacements(formData: FormData) {
-  const session = await auth();
-  if (!session) {
+  const cookieStore = await cookies();
+  if (cookieStore.get("admin_session")?.value !== "true") {
     console.error("Unauthorized");
     return;
   }
