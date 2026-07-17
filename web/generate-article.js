@@ -115,7 +115,16 @@ async function generateBannerImage(imagePrompt, articleTitle) {
 
 async function ingestArticle(articlePayload) {
   console.log("🚀 Submitting draft article to Bullish Hammer Ingestion API...");
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  let baseUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!baseUrl) {
+    if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+      baseUrl = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+    } else if (process.env.VERCEL_URL) {
+      baseUrl = `https://${process.env.VERCEL_URL}`;
+    } else {
+      baseUrl = 'http://localhost:3000';
+    }
+  }
   const res = await fetch(`${baseUrl}/api/ingest`, {
     method: 'POST',
     headers: {
