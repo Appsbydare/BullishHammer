@@ -1,4 +1,4 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
@@ -30,7 +30,7 @@ if (!GEMINI_API_KEY) {
   process.exit(1);
 }
 
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 async function fetchLatestNews() {
   console.log("📰 Fetching latest market news from Marketaux...");
@@ -41,8 +41,8 @@ async function fetchLatestNews() {
 }
 
 async function generateArticle(newsData) {
-  console.log("🧠 Sending news data to Gemini to write an article...");
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", generationConfig: { responseMimeType: "application/json" } });
+  const geminiModel = process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash";
+  console.log(`🧠 Sending news data to ${geminiModel} to write an article...`);
 
   const prompt = `
   You are an expert financial journalist writing for "Bullish Hammer", a premium retail FX and market analysis publication.
@@ -66,8 +66,12 @@ async function generateArticle(newsData) {
   }
   `;
 
-  const result = await model.generateContent(prompt);
-  const responseText = result.response.text();
+  const result = await ai.models.generateContent({
+    model: geminiModel,
+    contents: prompt,
+    config: { responseMimeType: "application/json" },
+  });
+  const responseText = result.text ?? "";
   
   try {
     return JSON.parse(responseText);
