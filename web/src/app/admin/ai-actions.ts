@@ -43,7 +43,7 @@ export async function generateArticleAction(newsData: any[], customInstructions:
     if (!AI_INGEST_SECRET) return { error: "AI_INGEST_SECRET is missing." };
 
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const geminiModel = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash-lite";
+    const geminiModel = process.env.GEMINI_MODEL?.trim() || "gemini-1.5-flash";
     const model = genAI.getGenerativeModel({ model: geminiModel, generationConfig: { responseMimeType: "application/json" } });
 
     const instructionsAddition = customInstructions ? `\n\nCRITICAL CUSTOM INSTRUCTIONS from the Editor:\n"${customInstructions}"\nYou MUST strictly follow these instructions in your writing.` : "";

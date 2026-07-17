@@ -42,7 +42,7 @@ POLLINATIONS_API_KEY=your_pollinations_key
 
 # AI Configuration
 GEMINI_API_KEY=your_google_gemini_key
-GEMINI_MODEL=gemini-2.5-flash-lite
+GEMINI_MODEL=gemini-1.5-flash
 IMAGE_GEN_MODEL=flux
 
 # Application Security
