@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { fetchNewsAction, generateArticleAction } from "./ai-actions";
+import { fetchNewsAction, generateArticlePreviewAction, saveArticleDraftAction } from "./ai-actions";
 
 export default function AiGeneratorForm() {
   const [step, setStep] = useState(1);
@@ -13,6 +13,12 @@ export default function AiGeneratorForm() {
   const [isFetching, setIsFetching] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Preview Modal State
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const categories = ["All Latest News", "Forex", "Crypto", "Tech Stocks", "Commodities", "Global Economy"];
 
@@ -41,21 +47,39 @@ export default function AiGeneratorForm() {
     }
     
     setIsGenerating(true);
+    setIsPreviewOpen(true);
+    setPreviewData(null);
     setError(null);
     
     const selectedNewsData = newsItems.filter(n => selectedNewsIds.has(n.uuid));
     
-    const res = await generateArticleAction(selectedNewsData, customInstructions);
+    const res = await generateArticlePreviewAction(selectedNewsData, customInstructions);
     if (res.error) {
       setError(res.error);
       setIsGenerating(false);
+      setIsPreviewOpen(false);
     } else {
-      // Success! Reset state
+      setIsTransitioning(true);
+      setTimeout(() => {
+        setPreviewData(res.payload);
+        setIsGenerating(false);
+        setIsTransitioning(false);
+      }, 400);
+    }
+  }
+
+  async function handleSaveDraft() {
+    setIsSaving(true);
+    const res = await saveArticleDraftAction(previewData);
+    setIsSaving(false);
+
+    if (res.error) {
+      alert("Failed to save draft: " + res.error);
+    } else {
+      setIsPreviewOpen(false);
       setStep(1);
       setNewsItems([]);
       setCustomInstructions("");
-      setIsGenerating(false);
-      // The server action already calls revalidatePath, so the dashboard will update automatically
     }
   }
 
@@ -71,41 +95,69 @@ export default function AiGeneratorForm() {
 
   return (
     <div className="ai-generator-container">
-      {error && <div className="error-message shake" style={{ marginBottom: '1rem' }}>{error}</div>}
-      
+      {error && <div className="error-message shake">{error}</div>}
+
       {step === 1 && (
-        <form onSubmit={handleFetchNews} className="ai-step-1" style={{ display: 'flex', gap: '12px' }}>
-          <input 
-            list="news-categories"
-            value={category} 
-            onChange={(e) => setCategory(e.target.value)}
-            className="admin-input ai-select"
-            style={{ width: '250px', padding: '0.6rem 1.2rem' }}
-            placeholder="Select or type a topic..."
-          />
-          <datalist id="news-categories">
-            {categories.map(c => <option key={c} value={c} />)}
-          </datalist>
-          <button type="submit" className={`admin-btn admin-btn-primary ${isFetching ? 'is-loading' : ''}`} disabled={isFetching} style={{ padding: '0.6rem 1.2rem', width: 'auto' }}>
-            {isFetching && <svg className="admin-spinner" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray="31.4 31.4" /></svg>}
-            <span className="btn-content" style={{ opacity: isFetching ? 0 : 1 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-              Fetch News
-            </span>
-            {isFetching && <span className="btn-pending-text">Fetching...</span>}
-          </button>
+        <form onSubmit={handleFetchNews} className="ai-fetch-card">
+          <div className="ai-fetch-head">
+            <div>
+              <h2>Article generator</h2>
+              <p>Market source</p>
+            </div>
+            <span>{category}</span>
+          </div>
+
+          <div className="ai-topic-row" aria-label="Market category">
+            {categories.map(c => (
+              <button
+                key={c}
+                type="button"
+                className={`ai-topic-pill ${category === c ? "active" : ""}`}
+                onClick={() => setCategory(c)}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+
+          <div className="ai-form-row">
+            <input
+              list="news-categories"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="admin-input ai-select"
+              placeholder="Custom market topic"
+            />
+            <datalist id="news-categories">
+              {categories.map(c => <option key={c} value={c} />)}
+            </datalist>
+            <button type="submit" className={`admin-btn admin-btn-primary ${isFetching ? 'is-loading' : ''}`} disabled={isFetching}>
+              {isFetching && <svg className="admin-spinner" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray="31.4 31.4" /></svg>}
+              <span className="btn-content" style={{ opacity: isFetching ? 0 : 1 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                Fetch News
+              </span>
+              {isFetching && <span className="btn-pending-text">Fetching...</span>}
+            </button>
+          </div>
         </form>
       )}
 
       {step === 2 && (
-        <form onSubmit={handleGenerate} className="ai-step-2 animate-fade-in" style={{ background: '#0a0a0a', border: '1px solid #1f1f1f', padding: '2rem', borderRadius: '16px', marginTop: '1rem', width: '100%', maxWidth: '1000px' }}>
-          <div className="ai-news-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '500px', overflowY: 'auto', marginBottom: '2rem', paddingRight: '8px' }}>
-            <h4 style={{ margin: 0, color: '#eee', fontFamily: 'Outfit, sans-serif' }}>Select News to Synthesize ({category})</h4>
+        <form onSubmit={handleGenerate} className="ai-step-2 animate-fade-in">
+          <div className="ai-news-list">
+            <div className="ai-news-header">
+              <div>
+                <h4>{category}</h4>
+                <p>{selectedNewsIds.size} of {newsItems.length} selected</p>
+              </div>
+              <button type="button" className="ai-link-button" onClick={() => setStep(1)} disabled={isGenerating}>Change source</button>
+            </div>
             {newsItems.length === 0 ? <p>No news found.</p> : null}
             {newsItems.map(item => (
               <label key={item.uuid} className={`ai-news-item ${selectedNewsIds.has(item.uuid) ? 'selected' : ''}`}>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={selectedNewsIds.has(item.uuid)}
                   onChange={() => toggleSelection(item.uuid)}
                 />
@@ -116,27 +168,88 @@ export default function AiGeneratorForm() {
               </label>
             ))}
           </div>
-          
-          <div className="ai-custom-instructions" style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc', fontSize: '0.9rem' }}>Custom Instructions for AI (Optional)</label>
-            <textarea 
-              className="admin-input" 
-              rows={3} 
+
+          <div className="ai-custom-instructions">
+            <label>Custom Instructions for AI (Optional)</label>
+            <textarea
+              className="admin-input"
+              rows={3}
               placeholder="e.g. Focus on the impact of interest rates..."
               value={customInstructions}
               onChange={e => setCustomInstructions(e.target.value)}
             />
           </div>
 
-          <div className="ai-step-actions" style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-            <button type="button" className="admin-btn admin-btn-secondary" onClick={() => setStep(1)} disabled={isGenerating} style={{ width: 'auto', padding: '0.5rem 1rem' }}>Cancel</button>
-            <button type="submit" className={`admin-btn admin-btn-success ${isGenerating ? 'is-loading' : ''}`} disabled={isGenerating || selectedNewsIds.size === 0} style={{ width: 'auto', padding: '0.5rem 1.5rem' }}>
-              {isGenerating && <svg className="admin-spinner" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray="31.4 31.4" /></svg>}
-              <span className="btn-content" style={{ opacity: isGenerating ? 0 : 1 }}>Generate Article</span>
-              {isGenerating && <span className="btn-pending-text">Generating...</span>}
+          <div className="ai-step-actions">
+            <button type="button" className="admin-btn admin-btn-secondary admin-btn-compact" onClick={() => setStep(1)} disabled={isGenerating}>Cancel</button>
+            <button type="submit" className={`admin-btn admin-btn-success admin-btn-compact ${isGenerating ? 'is-loading' : ''}`} disabled={isGenerating || selectedNewsIds.size === 0}>
+              <span className="btn-content">Generate Article</span>
             </button>
           </div>
         </form>
+      )}
+
+      {/* --- PREVIEW MODAL --- */}
+      {isPreviewOpen && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal admin-modal-wide">
+
+            {isGenerating && (
+              <div className={`admin-modal-loading ${isTransitioning ? 'fade-out' : ''}`}>
+                <div className="admin-loader-visual" aria-hidden="true">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <h3>Drafting Article</h3>
+                <p>Synthesizing news and generating a professional financial post.</p>
+              </div>
+            )}
+
+            {!isGenerating && previewData && (
+              <div className="admin-modal-preview fade-down-in">
+                <h3>Review Generated Draft</h3>
+
+                <div className="admin-modal-review">
+                   <h2>{previewData.title}</h2>
+                   <p className="admin-modal-excerpt">{previewData.excerpt}</p>
+
+                   {previewData.coverImageBase64 ? (
+                      <div className="admin-modal-image-container">
+                       {/* eslint-disable-next-line @next/next/no-img-element */}
+                       <img src={`data:${previewData.coverImageMimeType};base64,${previewData.coverImageBase64}`} alt="Cover" />
+                     </div>
+                   ) : (
+                      <div className="admin-modal-empty-image">
+                        No Cover Image Generated
+                      </div>
+                    )}
+
+                    <div className="admin-modal-body">
+                       {previewData.body}
+                    </div>
+                 </div>
+
+                 <div className="admin-modal-actions admin-modal-actions-sticky">
+                  <button
+                    className="admin-btn"
+                    onClick={() => setIsPreviewOpen(false)}
+                    disabled={isSaving}
+                  >
+                    Discard
+                  </button>
+                  <button
+                    className="admin-btn admin-btn-success"
+                    onClick={handleSaveDraft}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? "Saving..." : "Approve & Save Draft"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

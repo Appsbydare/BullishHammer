@@ -35,6 +35,44 @@ async function deleteArticle(formData: FormData) {
   revalidatePath("/");
 }
 
+async function generateCoverImage(formData: FormData) {
+  "use server";
+  const cookieStore = await cookies();
+  if (cookieStore.get("admin_session")?.value !== "true") return;
+
+  const id = formData.get("id") as string;
+  const title = formData.get("title") as string;
+  if (!id || !title) return;
+
+  try {
+    const imagePromptText = `Cinematic premium editorial financial news cover image for article: "${title}". Professional photography, dark dramatic lighting, financial markets, 4K quality.`;
+    const seed = Math.floor(Math.random() * 2000000000);
+    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePromptText)}?width=1280&height=720&model=sana&nologo=true&enhance=true&seed=${seed}`;
+
+    const imgRes = await fetch(pollinationsUrl, { signal: AbortSignal.timeout(45000) });
+    if (imgRes.ok) {
+      const arrayBuffer = await imgRes.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const mimeType = imgRes.headers.get("content-type") || "image/jpeg";
+      const ext = mimeType.includes('png') ? 'png' : 'jpg';
+
+      const asset = await writeClient.assets.upload('image', buffer, {
+        filename: `cover-${Date.now()}.${ext}`,
+        contentType: mimeType,
+      });
+
+      await writeClient.patch(id).set({
+        coverImage: { _type: 'image', asset: { _type: 'reference', _ref: asset._id } }
+      }).commit();
+
+      revalidatePath("/admin");
+      revalidatePath("/");
+    }
+  } catch (error) {
+    console.error("Manual image generation failed:", error);
+  }
+}
+
 // --- QUERIES ---
 
 const DRAFTS_QUERY = defineQuery(
@@ -61,6 +99,7 @@ const SPONSORS_QUERY = defineQuery(
 
 import LoginForm from "./LoginForm";
 import SubmitButton from "./SubmitButton";
+import ImageGeneratorButton from "./ImageGeneratorButton";
 
 // --- COMPONENT ---
 
@@ -87,36 +126,37 @@ export default async function AdminPage() {
       <section className="admin-section">
         <h2>Pending AI Drafts ({drafts.length})</h2>
         {drafts.length === 0 ? (
-          <p style={{ color: '#666' }}>No drafts awaiting review.</p>
+          <p className="admin-empty-state">No drafts awaiting review.</p>
         ) : (
           <div className="admin-card-grid">
             {drafts.map((draft: any) => (
-              <div key={draft._id} className="admin-card" style={{ flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
+              <div key={draft._id} className="admin-card admin-draft-card">
                 {draft.coverImageUrl ? (
                   <img
                     src={draft.coverImageUrl}
                     alt={draft.title}
-                    style={{ width: '100%', height: '160px', objectFit: 'cover', display: 'block' }}
+                    className="admin-draft-image"
                   />
                 ) : (
-                  <div style={{ width: '100%', height: '160px', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px solid #1f1f1f' }}>
-                    <span style={{ color: '#333', fontSize: '0.8rem' }}>No cover image</span>
+                  <div className="admin-draft-placeholder">
+                    <span>No cover image</span>
                   </div>
                 )}
-                <div style={{ padding: '1rem' }}>
+                <div className="admin-draft-body">
                   <div className="admin-card-content">
-                    <h3 style={{ marginBottom: '0.5rem', fontSize: '1rem', lineHeight: '1.4' }}>{draft.title}</h3>
-                    <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: '0.5rem' }}>{draft.excerpt}</p>
-                    <p style={{ color: '#4facfe', fontSize: '0.75rem' }}>{draft.aiProvenance}</p>
+                    <h3 className="admin-draft-title">{draft.title}</h3>
+                    <p className="admin-draft-excerpt">{draft.excerpt}</p>
+                    <p className="admin-provenance">{draft.aiProvenance}</p>
                   </div>
-                  <div className="admin-card-actions" style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #1a1a1a' }}>
+                  <div className="admin-card-actions admin-card-actions-bordered">
                     <form action={approveDraft}>
                       <input type="hidden" name="id" value={draft._id} />
-                      <SubmitButton className="admin-btn admin-btn-success" style={{ padding: '0.5rem 1rem' }} pendingText="Publishing...">Publish</SubmitButton>
+                      <SubmitButton className="admin-btn admin-btn-success admin-btn-compact" pendingText="Publishing...">Publish</SubmitButton>
                     </form>
+                    <ImageGeneratorButton articleId={draft._id} title={draft.title} excerpt={draft.excerpt} />
                     <form action={deleteDraft}>
                       <input type="hidden" name="id" value={draft._id} />
-                      <SubmitButton className="admin-btn admin-btn-danger" style={{ padding: '0.5rem 1rem' }} pendingText="Deleting...">Delete</SubmitButton>
+                      <SubmitButton className="admin-btn admin-btn-danger admin-btn-compact" pendingText="Deleting...">Delete</SubmitButton>
                     </form>
                   </div>
                 </div>
@@ -130,50 +170,42 @@ export default async function AdminPage() {
       <section className="admin-section">
         <h2>Published Articles ({published.length})</h2>
         {published.length === 0 ? (
-          <p style={{ color: '#666' }}>No published articles yet.</p>
+          <p className="admin-empty-state">No published articles yet.</p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="admin-list">
             {published.map((article: any) => (
-              <div key={article._id} style={{
-                display: 'flex',
-                gap: '1rem',
-                alignItems: 'center',
-                background: '#0a0a0a',
-                border: '1px solid #1a1a1a',
-                borderRadius: '8px',
-                padding: '0.75rem 1rem',
-              }}>
+              <div key={article._id} className="admin-list-row">
                 {article.coverImageUrl ? (
                   <img
                     src={article.coverImageUrl}
                     alt={article.title}
-                    style={{ width: '80px', height: '54px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }}
+                    className="admin-list-thumb"
                   />
                 ) : (
-                  <div style={{ width: '80px', height: '54px', background: '#1a1a1a', borderRadius: '4px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ color: '#333', fontSize: '0.65rem' }}>No img</span>
+                  <div className="admin-thumb-placeholder">
+                    <span>No image</span>
                   </div>
                 )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontWeight: 600, fontSize: '0.95rem', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{article.title}</p>
-                  <p style={{ fontSize: '0.78rem', color: '#666', margin: '0.2rem 0 0' }}>
-                    {article.category?.title && <span style={{ marginRight: '0.5rem', color: '#888' }}>{article.category.title}</span>}
+                <div className="admin-list-content">
+                  <p className="admin-list-title">{article.title}</p>
+                  <p className="admin-list-meta">
+                    {article.category?.title && <span>{article.category.title}</span>}
                     {new Date(article.publishedAt).toLocaleDateString()}
                   </p>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                <div className="admin-list-actions">
+                  <ImageGeneratorButton articleId={article._id} title={article.title} excerpt={article.excerpt} />
                   <a
                     href={`/article/${article.slug}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="admin-btn admin-btn-secondary"
-                    style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', width: 'auto', textDecoration: 'none' }}
+                    className="admin-btn admin-btn-secondary admin-btn-compact"
                   >
                     View
                   </a>
                   <form action={deleteArticle}>
                     <input type="hidden" name="id" value={article._id} />
-                    <SubmitButton className="admin-btn admin-btn-danger" style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', width: 'auto' }} pendingText="Deleting...">Delete</SubmitButton>
+                    <SubmitButton className="admin-btn admin-btn-danger admin-btn-compact" pendingText="Deleting...">Delete</SubmitButton>
                   </form>
                 </div>
               </div>
@@ -184,9 +216,9 @@ export default async function AdminPage() {
 
       {/* --- ACTIVE SPONSORS --- */}
       <section className="admin-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h2 style={{ margin: 0 }}>Active Sponsor Campaigns ({sponsors.length})</h2>
-          <a href="http://localhost:3333/structure/sponsorCampaign" target="_blank" rel="noreferrer" className="admin-btn admin-btn-secondary" style={{ padding: '0.5rem 1rem', width: 'auto', textDecoration: 'none' }}>
+        <div className="admin-section-toolbar">
+          <h2>Active Sponsor Campaigns ({sponsors.length})</h2>
+          <a href="http://localhost:3333/structure/sponsorCampaign" target="_blank" rel="noreferrer" className="admin-btn admin-btn-secondary admin-btn-compact">
             Manage in Sanity
           </a>
         </div>
@@ -194,7 +226,7 @@ export default async function AdminPage() {
           {sponsors.map((sponsor: any) => (
             <div key={sponsor._id} className="admin-sponsor-card">
               <h3>{sponsor.sponsorName}</h3>
-              {sponsor.adCopy && <p style={{ margin: '0.75rem 0', color: '#aaa', fontSize: '0.95rem', lineHeight: '1.5' }}>"{sponsor.adCopy}"</p>}
+              {sponsor.adCopy && <p className="admin-sponsor-copy">{sponsor.adCopy}</p>}
               <a href={sponsor.destinationUrl} target="_blank" rel="noreferrer">{sponsor.destinationUrl}</a>
             </div>
           ))}
