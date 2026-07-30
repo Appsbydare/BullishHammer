@@ -82,7 +82,7 @@ async function generateArticle(newsData) {
 }
 
 async function generateBannerImage(imagePrompt, articleTitle) {
-  console.log(`🖼️  Generating banner image via Pollinations (model: ${IMAGE_GEN_MODEL})...`);
+  console.log(`🖼️  Generating banner image via Pollinations  (model: ${IMAGE_GEN_MODEL})...`);
 
   // Use Gemini's imagePrompt if available, otherwise fall back to article title
   const prompt = imagePrompt || `Premium financial editorial banner: ${articleTitle}, stock market, professional photography`;
