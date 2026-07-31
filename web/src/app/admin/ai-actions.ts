@@ -139,20 +139,36 @@ export async function generateArticlePreviewAction(newsData: any[], customInstru
       const imagePromptText = articlePayload.imagePrompt ||
         `Cinematic premium editorial financial news cover image for article: "${articlePayload.title}". Professional photography, dark dramatic lighting, financial markets, 4K quality.`;
       const seed = Math.floor(Math.random() * 2000000000);
-      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePromptText)}?width=1280&height=720&model=sana&nologo=true&enhance=true&seed=${seed}`;
-      console.log("Generating cover image from Pollinations (sana)...");
-      const imgRes = await fetch(pollinationsUrl, { signal: AbortSignal.timeout(45000) });
-      if (imgRes.ok) {
-        const arrayBuffer = await imgRes.arrayBuffer();
-        articlePayload.coverImageBase64 = Buffer.from(arrayBuffer).toString("base64");
-        articlePayload.coverImageMimeType = imgRes.headers.get("content-type") || "image/jpeg";
-        console.log("Cover image generated successfully.");
-      } else {
-        console.warn(`Pollinations returned ${imgRes.status}, skipping cover image.`);
+
+      // Try multiple models in order — sana returns 403, use flux-family instead
+      const models = ["flux", "turbo", "flux-realism"];
+      let imageGenerated = false;
+      for (const model of models) {
+        try {
+          const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePromptText)}?width=1280&height=720&model=${model}&nologo=true&seed=${seed}`;
+          console.log(`Generating cover image from Pollinations (${model})...`);
+          const imgRes = await fetch(pollinationsUrl, { signal: AbortSignal.timeout(45000) });
+          if (imgRes.ok) {
+            const arrayBuffer = await imgRes.arrayBuffer();
+            articlePayload.coverImageBase64 = Buffer.from(arrayBuffer).toString("base64");
+            articlePayload.coverImageMimeType = imgRes.headers.get("content-type") || "image/jpeg";
+            console.log(`Cover image generated successfully with model: ${model}`);
+            imageGenerated = true;
+            break;
+          } else {
+            console.warn(`Pollinations model '${model}' returned ${imgRes.status}, trying next...`);
+          }
+        } catch (modelErr: any) {
+          console.warn(`Pollinations model '${model}' error: ${modelErr.message}, trying next...`);
+        }
+      }
+      if (!imageGenerated) {
+        console.warn("All Pollinations models failed, skipping cover image.");
       }
     } catch (imgErr: any) {
       console.warn("Cover image generation failed (non-fatal):", imgErr.message);
     }
+
 
     return { success: true, payload: articlePayload };
   } catch (error: any) {
@@ -262,4 +278,46 @@ export async function applyImageToArticleAction(articleId: string, base64Data: s
     console.error("applyImageToArticleAction error:", error);
     return { error: error.message || "Failed to apply image." };
   }
+}
+
+/**
+ * Fetches an image from Pollinations on the SERVER side (avoids browser 403/CORS).
+ * Returns the image as a base64 data URL string.
+ */
+export async function fetchImageFromPollinationsAction(prompt: string): Promise<{ success: boolean; dataUrl?: string; mimeType?: string; error?: string }> {
+  const cookieStore = await cookies();
+  if (cookieStore.get("admin_session")?.value !== "true") return { success: false, error: "Unauthorized" };
+
+  const models = ["flux", "turbo", "flux-realism"];
+  const seed = Math.floor(Math.random() * 2000000000);
+  let lastError = "";
+
+  for (const model of models) {
+    try {
+      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1280&height=720&model=${model}&nologo=true&seed=${seed}`;
+      console.log(`[Server] Fetching Pollinations image with model: ${model}`);
+      const res = await fetch(url, { signal: AbortSignal.timeout(60000) });
+
+      if (!res.ok) {
+        lastError = `${model} returned ${res.status}`;
+        console.warn(`[Server] Pollinations '${model}' failed: ${res.status}, trying next...`);
+        continue;
+      }
+
+      const arrayBuffer = await res.arrayBuffer();
+      const mimeType = res.headers.get("content-type") || "image/jpeg";
+      const base64 = Buffer.from(arrayBuffer).toString("base64");
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+
+      console.log(`[Server] Pollinations image generated successfully with model: ${model}`);
+      return { success: true, dataUrl, mimeType };
+    } catch (err: any) {
+      lastError = err?.name === "TimeoutError"
+        ? `${model} timed out`
+        : `${model}: ${err?.message || "unknown"}`;
+      console.warn(`[Server] Pollinations '${model}' error: ${lastError}`);
+    }
+  }
+
+  return { success: false, error: `All models failed. Last error: ${lastError}` };
 }

@@ -1394,13 +1394,14 @@ body {
   inset: 0;
   background: rgba(0, 0, 0, 0.78);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  z-index: 1000;
-  animation: fadeInAdmin 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  z-index: 9999;
   box-sizing: border-box;
+  /* No animation here — overlay mounts once and stays. Only the modal box animates in. */
 }
 
 .admin-modal {

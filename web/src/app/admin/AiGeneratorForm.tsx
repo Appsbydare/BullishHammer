@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { fetchNewsAction, generateArticlePreviewAction, saveArticleDraftAction } from "./ai-actions";
 
 export default function AiGeneratorForm() {
@@ -92,6 +93,72 @@ export default function AiGeneratorForm() {
     }
     setSelectedNewsIds(newSet);
   }
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const previewModal = isPreviewOpen && mounted ? createPortal(
+    <div className="admin-modal-overlay">
+      <div className="admin-modal admin-modal-wide">
+
+        {isGenerating && (
+          <div className={`admin-modal-loading ${isTransitioning ? 'fade-out' : ''}`}>
+            <div className="admin-loader-visual" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <h3>Drafting Article</h3>
+            <p>Synthesizing news and generating a professional financial post.</p>
+          </div>
+        )}
+
+        {!isGenerating && previewData && (
+          <div className="admin-modal-preview fade-down-in">
+            <h3>Review Generated Draft</h3>
+
+            <div className="admin-modal-review">
+              <h2>{previewData.title}</h2>
+              <p className="admin-modal-excerpt">{previewData.excerpt}</p>
+
+              {previewData.coverImageBase64 ? (
+                <div className="admin-modal-image-container">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`data:${previewData.coverImageMimeType};base64,${previewData.coverImageBase64}`} alt="Cover" />
+                </div>
+              ) : (
+                <div className="admin-modal-empty-image">
+                  No Cover Image Generated
+                </div>
+              )}
+
+              <div className="admin-modal-body">
+                {previewData.body}
+              </div>
+            </div>
+
+            <div className="admin-modal-actions admin-modal-actions-sticky">
+              <button
+                className="admin-btn"
+                onClick={() => setIsPreviewOpen(false)}
+                disabled={isSaving}
+              >
+                Discard
+              </button>
+              <button
+                className="admin-btn admin-btn-success"
+                onClick={handleSaveDraft}
+                disabled={isSaving}
+              >
+                {isSaving ? "Saving..." : "Approve & Save Draft"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  ) : null;
 
   return (
     <div className="ai-generator-container">
@@ -189,68 +256,7 @@ export default function AiGeneratorForm() {
         </form>
       )}
 
-      {/* --- PREVIEW MODAL --- */}
-      {isPreviewOpen && (
-        <div className="admin-modal-overlay">
-          <div className="admin-modal admin-modal-wide">
-
-            {isGenerating && (
-              <div className={`admin-modal-loading ${isTransitioning ? 'fade-out' : ''}`}>
-                <div className="admin-loader-visual" aria-hidden="true">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
-                <h3>Drafting Article</h3>
-                <p>Synthesizing news and generating a professional financial post.</p>
-              </div>
-            )}
-
-            {!isGenerating && previewData && (
-              <div className="admin-modal-preview fade-down-in">
-                <h3>Review Generated Draft</h3>
-
-                <div className="admin-modal-review">
-                   <h2>{previewData.title}</h2>
-                   <p className="admin-modal-excerpt">{previewData.excerpt}</p>
-
-                   {previewData.coverImageBase64 ? (
-                      <div className="admin-modal-image-container">
-                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                       <img src={`data:${previewData.coverImageMimeType};base64,${previewData.coverImageBase64}`} alt="Cover" />
-                     </div>
-                   ) : (
-                      <div className="admin-modal-empty-image">
-                        No Cover Image Generated
-                      </div>
-                    )}
-
-                    <div className="admin-modal-body">
-                       {previewData.body}
-                    </div>
-                 </div>
-
-                 <div className="admin-modal-actions admin-modal-actions-sticky">
-                  <button
-                    className="admin-btn"
-                    onClick={() => setIsPreviewOpen(false)}
-                    disabled={isSaving}
-                  >
-                    Discard
-                  </button>
-                  <button
-                    className="admin-btn admin-btn-success"
-                    onClick={handleSaveDraft}
-                    disabled={isSaving}
-                  >
-                    {isSaving ? "Saving..." : "Approve & Save Draft"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {previewModal}
     </div>
   );
 }
