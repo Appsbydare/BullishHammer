@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { generateImagePromptAction, applyImageToArticleAction } from "./ai-actions";
+
+type Stage = "idle" | "prompting" | "generating" | "preview" | "error";
 
 export default function ImageGeneratorButton({
   articleId,
@@ -13,94 +15,118 @@ export default function ImageGeneratorButton({
   excerpt: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [stage, setStage] = useState<"idle" | "prompting" | "generating" | "preview">("idle");
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [stage, setStage] = useState<Stage>("idle");
   const [imagePrompt, setImagePrompt] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [base64Data, setBase64Data] = useState("");
   const [isApplying, setIsApplying] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const startGeneration = async () => {
-    setIsOpen(true);
-    setStage("prompting");
+  const closeModal = useCallback(() => {
+    setIsOpen(false);
+    setStage("idle");
+    setErrorMessage("");
+    setImagePrompt("");
+    setImageUrl("");
+    setBase64Data("");
+  }, []);
 
-    // 1. Generate Prompt via AI
-    const promptRes = await generateImagePromptAction(title, excerpt);
-    if (!promptRes.success || !promptRes.prompt) {
-      alert("Failed to generate prompt: " + promptRes.error);
-      setIsOpen(false);
-      setStage("idle");
-      return;
-    }
-    
-    setImagePrompt(promptRes.prompt);
-    
-    // 2. Fetch from Pollinations
-    await fetchImage(promptRes.prompt);
-  };
+  const showError = useCallback((msg: string) => {
+    setErrorMessage(msg);
+    setStage("error");
+  }, []);
 
-  const fetchImage = async (prompt: string) => {
+  const fetchImage = useCallback(async (prompt: string) => {
     setStage("generating");
     try {
       const seed = Math.floor(Math.random() * 2000000000);
       const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1280&height=720&model=sana&nologo=true&enhance=true&seed=${seed}`;
-      
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Image generation failed");
-      
+
+      const res = await fetch(url, { signal: AbortSignal.timeout(60000) });
+      if (!res.ok) throw new Error("Pollinations returned " + res.status);
+
       const blob = await res.blob();
-      
-      // Convert to base64 for preview and upload
+
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64 = reader.result as string;
         setBase64Data(base64);
-        setImageUrl(base64); // Data URL
-        
-        setIsTransitioning(true);
-        setTimeout(() => {
-          setStage("preview");
-          setIsTransitioning(false);
-        }, 400);
+        setImageUrl(base64);
+        setStage("preview");
       };
+      reader.onerror = () => showError("Failed to read image data.");
       reader.readAsDataURL(blob);
-      
     } catch (err: any) {
-      alert("Error generating image: " + err.message);
-      setIsOpen(false);
-      setStage("idle");
+      const msg = err?.name === "TimeoutError"
+        ? "Image generation timed out. Please retry."
+        : "Image generation failed: " + (err?.message || "Unknown error");
+      showError(msg);
+    }
+  }, [showError]);
+
+  const startGeneration = async () => {
+    setIsOpen(true);
+    setStage("prompting");
+    setErrorMessage("");
+
+    try {
+      const promptRes = await generateImagePromptAction(title, excerpt);
+
+      if (!promptRes.success || !promptRes.prompt) {
+        showError("Failed to generate prompt: " + (promptRes.error || "Unknown error"));
+        return;
+      }
+
+      const resolvedPrompt = promptRes.prompt;
+      setImagePrompt(resolvedPrompt);
+      await fetchImage(resolvedPrompt);
+    } catch (err: any) {
+      showError("Unexpected error: " + (err?.message || "Unknown error"));
     }
   };
 
   const handleApply = async () => {
     setIsApplying(true);
-    const res = await applyImageToArticleAction(articleId, base64Data, "image/jpeg");
-    setIsApplying(false);
-    
-    if (res.success) {
-      setIsOpen(false);
-      setStage("idle");
-    } else {
-      alert("Failed to apply: " + res.error);
+    try {
+      const res = await applyImageToArticleAction(articleId, base64Data, "image/jpeg");
+      if (res.success) {
+        closeModal();
+      } else {
+        showError("Failed to apply image: " + (res.error || "Unknown error"));
+      }
+    } catch (err: any) {
+      showError("Unexpected error: " + (err?.message || "Unknown error"));
+    } finally {
+      setIsApplying(false);
     }
   };
 
   return (
     <>
-      <button 
-        type="button" 
+      <button
+        type="button"
         onClick={startGeneration}
-        className="admin-btn admin-btn-secondary admin-btn-compact" 
+        className="admin-btn admin-btn-secondary admin-btn-compact"
       >
         Gen Image
       </button>
 
       {isOpen && (
-        <div className="admin-modal-overlay">
+        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget && !isApplying) closeModal(); }}>
           <div className="admin-modal">
-            
+
+            {/* Close button always visible */}
+            <button
+              className="admin-modal-close"
+              onClick={closeModal}
+              aria-label="Close"
+              disabled={isApplying}
+            >
+              ✕
+            </button>
+
             {stage === "prompting" && (
-              <div className={`admin-modal-loading ${isTransitioning ? 'fade-out' : ''}`}>
+              <div className="admin-modal-loading">
                 <div className="admin-loader-visual" aria-hidden="true">
                   <span></span>
                   <span></span>
@@ -112,7 +138,7 @@ export default function ImageGeneratorButton({
             )}
 
             {stage === "generating" && (
-              <div className={`admin-modal-loading ${isTransitioning ? 'fade-out' : ''}`}>
+              <div className="admin-modal-loading">
                 <div className="admin-loader-visual" aria-hidden="true">
                   <span></span>
                   <span></span>
@@ -123,6 +149,28 @@ export default function ImageGeneratorButton({
               </div>
             )}
 
+            {stage === "error" && (
+              <div className="admin-modal-error">
+                <div className="admin-modal-error-icon">⚠</div>
+                <h3>Something went wrong</h3>
+                <p>{errorMessage}</p>
+                <div className="admin-modal-actions">
+                  <button className="admin-btn" onClick={closeModal}>
+                    Close
+                  </button>
+                  <button
+                    className="admin-btn admin-btn-secondary"
+                    onClick={() => {
+                      setErrorMessage("");
+                      startGeneration();
+                    }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            )}
+
             {stage === "preview" && (
               <div className="admin-modal-preview fade-down-in">
                 <h3>Image Preview</h3>
@@ -130,28 +178,28 @@ export default function ImageGeneratorButton({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={imageUrl} alt="Generated Cover" />
                 </div>
-                
+
                 <div className="admin-modal-prompt">
                   <p><strong>AI Prompt:</strong> {imagePrompt}</p>
                 </div>
 
                 <div className="admin-modal-actions">
-                  <button 
-                    className="admin-btn" 
-                    onClick={() => { setIsOpen(false); setStage("idle"); }}
+                  <button
+                    className="admin-btn"
+                    onClick={closeModal}
                     disabled={isApplying}
                   >
                     Discard
                   </button>
-                  <button 
-                    className="admin-btn admin-btn-secondary" 
+                  <button
+                    className="admin-btn admin-btn-secondary"
                     onClick={() => fetchImage(imagePrompt)}
                     disabled={isApplying}
                   >
                     Retry
                   </button>
-                  <button 
-                    className="admin-btn admin-btn-success" 
+                  <button
+                    className="admin-btn admin-btn-success"
                     onClick={handleApply}
                     disabled={isApplying}
                   >
@@ -160,6 +208,7 @@ export default function ImageGeneratorButton({
                 </div>
               </div>
             )}
+
           </div>
         </div>
       )}
