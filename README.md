@@ -41,13 +41,20 @@ MARKETAUX_API_TOKEN=your_marketaux_token
 POLLINATIONS_API_KEY=your_pollinations_key
 
 # AI Configuration
+AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=your_openrouter_key
+OPENROUTER_MODEL=meta-llama/llama-3.3-8b-instruct:free
 GEMINI_API_KEY=your_google_gemini_key
-GEMINI_MODEL=gemini-1.5-flash
+GEMINI_MODEL=gemini-2.0-flash
 IMAGE_GEN_MODEL=flux
 
 # Application Security
 ADMIN_PASSWORD=your_admin_login_password
+AUTH_SECRET=your_random_32_byte_secret
 AI_INGEST_SECRET=your_secure_ingestion_token
+
+# Optional. Only needed by the standalone generate-article.js script when run
+# against a remote deployment. The app itself no longer requires it.
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
@@ -58,10 +65,14 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
    npm install
    ```
 
-2. Start the development servers. This will run the Next.js application on port 3000 and Sanity Studio on port 3333 concurrently:
+2. Start the development servers. This will run the Next.js application on port 3000 and the standalone Sanity Studio on port 3333 concurrently:
    ```bash
    npm run dev
    ```
+
+   The Studio is also embedded in the Next.js app at `/studio`, which is what
+   production uses. The standalone `studio/` workspace is optional for local
+   schema work.
 
 3. To manually trigger the AI article generation pipeline, run:
    ```bash
@@ -69,13 +80,62 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
    node generate-article.js
    ```
 
+## Deploying to Vercel
+
+The repository is a npm-workspaces monorepo; `vercel.json` at the root points
+Vercel at the `web` workspace.
+
+1. **Import the repo** into Vercel. Leave the Root Directory as the repository
+   root — `vercel.json` handles the rest:
+   ```json
+   { "buildCommand": "npm run build --workspace web", "outputDirectory": "web/.next" }
+   ```
+
+2. **Add environment variables** in Project → Settings → Environment Variables.
+   Every key from the `.env.local` block above is required except
+   `NEXT_PUBLIC_SITE_URL`. `.env*` is gitignored, so these must be entered manually.
+
+3. **Add CORS origins in Sanity** so the embedded Studio at `/studio` can reach
+   the API from your deployed domain. Run once per origin:
+   ```bash
+   npx sanity cors add https://your-project.vercel.app --credentials
+   ```
+   Do this for the production domain and any preview domains you use.
+
+4. **Deploy.** The public site, the `/admin` dashboard, and the embedded Studio
+   at `/studio` are all served from the single Next.js deployment.
+
+### Routes
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Homepage: featured stories, live FX widget, market news |
+| `/article/[slug]` | Article detail with sponsor slots |
+| `/category/[slug]` | Category listing, generated from Sanity categories |
+| `/topics` | Index of all categories and tags |
+| `/topics/[slug]` | Articles for a single tag |
+| `/admin` | Password-protected editorial dashboard |
+| `/studio` | Embedded Sanity Studio (Sanity account required) |
+| `/api/fx` | FX snapshot consumed by the live rates widget |
+| `/api/ingest` | Bearer-token ingestion endpoint for the AI pipeline |
+
 ## Development Guidelines
 
 ### Styling Architecture
 * The project strictly uses vanilla CSS located in the global stylesheet (`web/src/app/globals.css`) and the admin stylesheet (`web/src/app/admin/admin.css`).
 * Tailwind CSS and other utility-first frameworks are intentionally excluded from this project to maintain the custom design system.
 
+### FX Data Sources
+* Live spot rates come from **CurrencyFreaks** (`CURRENCYFREAKS_API_KEY`).
+* 30-day history for the sparklines comes from **Frankfurter** (free, no key)
+  because the CurrencyFreaks historical endpoint requires a paid plan.
+* The APIs return USD-based rates. `web/src/lib/fx.ts` inverts EUR, GBP, AUD and
+  NZD so pairs display in their conventional market direction (EUR/USD ≈ 1.15,
+  not 0.87). Add new pairs to `FX_PAIRS` with the correct `invert` flag.
+
 ### Security Implementation
 * The administrative dashboard uses a custom session-based authentication mechanism.
 * Secure HTTP-only cookies are utilized for session persistence, configured to expire after one week of inactivity.
-* Production deployments require the `NEXT_PUBLIC_SITE_URL` environment variable to ensure proper routing for the ingestion API.
+* Article ingestion runs in-process via `web/src/lib/ingest.ts`. The admin action
+  calls it directly rather than issuing an HTTP request to the app's own
+  `/api/ingest` route, which would break under Vercel Deployment Protection.

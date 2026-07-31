@@ -4,6 +4,7 @@ export const sponsorCampaignType = defineType({
   fields: [
     defineField({ name: 'sponsorName', title: 'Sponsor Name', type: 'string' }),
     defineField({ name: 'image', title: 'Image', type: 'image' }),
+    defineField({ name: 'adCopy', title: 'Ad Copy (Text)', type: 'text' }),
     defineField({ name: 'destinationUrl', title: 'Destination URL', type: 'url' }),
     defineField({ name: 'disclosureLabel', title: 'Disclosure Label', type: 'string', initialValue: 'Advertisement' }),
     defineField({ name: 'startDate', title: 'Start Date', type: 'datetime' }),

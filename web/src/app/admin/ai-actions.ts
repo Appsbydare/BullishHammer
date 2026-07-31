@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getAIConfig } from "@/lib/ai-config";
+import { ingestArticle } from "@/lib/ingest";
 
 export async function fetchNewsAction(category: string) {
   const cookieStore = await cookies();
@@ -165,35 +166,13 @@ export async function saveArticleDraftAction(articlePayload: any) {
   if (cookieStore.get("admin_session")?.value !== "true") return { error: "Unauthorized" };
 
   try {
-    const AI_INGEST_SECRET = process.env.AI_INGEST_SECRET?.trim();
-    if (!AI_INGEST_SECRET) return { error: "AI_INGEST_SECRET is missing." };
-
-    let baseUrl = process.env.NEXT_PUBLIC_SITE_URL;
-    if (!baseUrl) {
-      if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-        baseUrl = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-      } else if (process.env.VERCEL_URL) {
-        baseUrl = `https://${process.env.VERCEL_URL}`;
-      } else {
-        baseUrl = "http://localhost:3000";
-      }
-    }
-    
-    const res = await fetch(`${baseUrl}/api/ingest`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${AI_INGEST_SECRET}`,
-      },
-      body: JSON.stringify(articlePayload),
-    });
-
-    const ingestResult = await res.json();
-    if (!res.ok) {
-      throw new Error(`Ingestion failed: ${JSON.stringify(ingestResult)}`);
-    }
+    // Call the ingestion logic in-process. Previously this made an HTTP request
+    // back to our own /api/ingest route, which required knowing the deployment
+    // URL and breaks under Vercel Deployment Protection.
+    await ingestArticle(articlePayload);
 
     revalidatePath("/admin");
+    revalidatePath("/");
     return { success: true };
   } catch (error: any) {
     console.error("saveArticleDraftAction error:", error);

@@ -218,7 +218,7 @@ export default async function AdminPage() {
       <section className="admin-section">
         <div className="admin-section-toolbar">
           <h2>Active Sponsor Campaigns ({sponsors.length})</h2>
-          <a href="http://localhost:3333/structure/sponsorCampaign" target="_blank" rel="noreferrer" className="admin-btn admin-btn-secondary admin-btn-compact">
+          <a href="/studio/structure/sponsorCampaign" target="_blank" rel="noreferrer" className="admin-btn admin-btn-secondary admin-btn-compact">
             Manage in Sanity
           </a>
         </div>
