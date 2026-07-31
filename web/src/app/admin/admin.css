@@ -1415,6 +1415,37 @@ body {
   flex-direction: column;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
   animation: modalIn 0.34s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  position: relative;
+}
+
+/* Close button on modal */
+.admin-modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #aaa;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1;
+  transition: background 0.2s, color 0.2s;
+  z-index: 10;
+  padding: 0;
+}
+.admin-modal-close:hover {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+}
+.admin-modal-close:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .admin-modal-wide {
@@ -1425,6 +1456,40 @@ body {
   from { opacity: 0; transform: translateY(18px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+/* Error state */
+.admin-modal-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  text-align: center;
+  gap: 0.5rem;
+}
+.admin-modal-error-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  color: #e55;
+}
+.admin-modal-error h3 {
+  margin: 0 0 0.25rem;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #fff;
+}
+.admin-modal-error p {
+  margin: 0 0 1.5rem;
+  color: #888;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  max-width: 380px;
+}
+.admin-modal-error .admin-modal-actions {
+  justify-content: center;
+}
+
 
 .admin-modal-loading {
   display: flex;

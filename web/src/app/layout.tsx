@@ -7,6 +7,10 @@ import LenisProvider from "@/components/LenisProvider";
 export const metadata: Metadata = {
   title: "Bullish Hammer | Premium FX Insights",
   description: "Retail FX trading publication and news.",
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({

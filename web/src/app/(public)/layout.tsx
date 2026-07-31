@@ -44,7 +44,21 @@ export default async function PublicLayout({
       <footer className="site-footer">
         <div className="container site-footer-inner">
           <div className="footer-brand">
-            <span className="footer-logo">Bullish Hammer</span>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '14px', marginBottom: '0.75rem' }}>
+              <img 
+                src="/logo.png" 
+                alt="Bullish Hammer Emblem" 
+                style={{ 
+                  height: '48px', 
+                  width: '48px', 
+                  borderRadius: '10px', 
+                  objectFit: 'contain',
+                  border: '1px solid #333',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                }} 
+              />
+              <span className="footer-logo">Bullish Hammer</span>
+            </div>
             <p>Premium retail FX trading and market analysis.</p>
           </div>
           <nav className="footer-links" aria-label="Footer">
