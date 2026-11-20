@@ -3,15 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"npm run dev --prefix web\" \"npm run dev --prefix studio\"",
-    "build": "npm run build --prefix web && npm run build --prefix studio",
-    "start": "concurrently \"npm run start --prefix web\" \"npm run start --prefix studio\""
+    "dev": "npm run dev --workspace web",
+    "build": "npm run build --workspace web",
+    "start": "npm run start --workspace web",
+    "db:migrate": "npm run db:migrate --workspace web"
   },
   "workspaces": [
-    "web",
-    "studio"
-  ],
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  }
+    "web"
+  ]
 }

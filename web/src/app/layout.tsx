@@ -1,30 +1,25 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import Preloader from "@/components/Preloader";
-import ThemeToggle from "@/components/ThemeToggle";
-import LenisProvider from "@/components/LenisProvider";
+import { SITE } from "@/lib/site";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Bullish Hammer | Premium FX Insights",
-  description: "Retail FX trading publication and news.",
-  icons: {
-    icon: "/icon.png",
-    apple: "/icon.png",
-  },
+  metadataBase: new URL(SITE.url),
+  title: { default: `${SITE.name}: ${SITE.tagline}`, template: `%s | ${SITE.name}` },
+  description: SITE.description,
+  applicationName: SITE.name,
+  openGraph: { type: "website", siteName: SITE.name, url: SITE.url },
+  twitter: { card: "summary_large_image" },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export const viewport: Viewport = { themeColor: "#0b0d10", colorScheme: "dark" };
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body>
-        <LenisProvider>
-          {children}
-        </LenisProvider>
-      </body>
+    <html lang="en" className={inter.variable}>
+      <body>{children}</body>
     </html>
   );
 }
